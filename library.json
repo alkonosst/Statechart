@@ -1,0 +1,17 @@
+{
+  "name": "Statechart",
+  "version": "0.1.0",
+  "authors": {
+    "name": "Maximiliano Ramirez",
+    "email": "maximiliano.ramirezbravo@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alkonosst/Statechart.git"
+  },
+  "description": "Hierarchical State Machine (HSM) library for embedded C++11 with zero dynamic memory allocation. Supports composite states, shallow and deep history, guards, guard fallthrough, internal transitions, and event inheritance.",
+  "keywords": "sm, fsm, hsm, hfsm, state, machine, hierarchical, finite, statechart, embedded, arduino, esp32, static, uml",
+  "license": "MIT",
+  "frameworks": "arduino",
+  "headers": ["Statechart.h"]
+}

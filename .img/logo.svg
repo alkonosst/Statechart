@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <marker id="n1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+      <polygon points="0 0, 7 3.5, 0 7" fill="#4f9cf9"/>
+    </marker>
+    <marker id="n2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+      <polygon points="0 0, 7 3.5, 0 7" fill="#a78bfa"/>
+    </marker>
+    <marker id="n3" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+      <polygon points="0 0, 7 3.5, 0 7" fill="#6b7280"/>
+    </marker>
+
+    <filter id="gf3" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Token paths (each one is one step of the cycle) -->
+    <!-- Step 1: initial -> A (pseudo-state down to A) -->
+    <path id="q-init-a" d="M 100 30 L 100 55"/>
+    <!-- Step 2: A -> B (right) -->
+    <path id="q-a-b"    d="M 122 80 L 148 100"/>
+    <!-- Step 3: B -> C (down-left diagonal) -->
+    <path id="q-b-c"    d="M 148 120 L 122 140"/>
+    <!-- Step 4: C -> A (up-left) -->
+    <path id="q-c-a"    d="M 78 140 L 78 105"/>
+  </defs>
+
+  <!-- Background -->
+  <rect width="200" height="200" rx="28" fill="#0f1117"/>
+
+  <!-- ======= ARROWS (brighten when transition fires) ======= -->
+  <!-- initial -> A (always dim) -->
+  <line x1="100" y1="29" x2="100" y2="46" stroke="#4f9cf9"
+        stroke-opacity="0.2" stroke-width="1.5" marker-end="url(#n1)"/>
+
+  <!-- A -> B -->
+  <line x1="119.6" y1="84.5" x2="138" y2="96" stroke="#4f9cf9"
+        stroke-width="1.5" marker-end="url(#n1)">
+    <animate attributeName="stroke-opacity"
+      values="0.2;0.2;0.85;0.85;0.2;0.2"
+      keyTimes="0;0.15;0.22;0.29;0.36;1"
+      dur="4.5s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- B -> C -->
+  <line x1="141.5" y1="124" x2="121" y2="140" stroke="#4f9cf9"
+        stroke-width="1.5" marker-end="url(#n1)">
+    <animate attributeName="stroke-opacity"
+      values="0.2;0.2;0.85;0.85;0.2;0.2"
+      keyTimes="0;0.45;0.52;0.59;0.66;1"
+      dur="4.5s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- C -> A -->
+  <path d="M 81.1 141.4 Q 40 110 78 86" fill="none" stroke="#a78bfa"
+        stroke-width="1.5" marker-end="url(#n2)">
+    <animate attributeName="stroke-opacity"
+      values="0.2;0.2;0.85;0.85;0.2;0.2"
+      keyTimes="0;0.75;0.82;0.89;0.96;1"
+      dur="4.5s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- ======= INITIAL PSEUDO-STATE ======= -->
+  <circle cx="100" cy="22" r="7" fill="#80aaff" opacity="0.7"/>
+
+  <!-- ======= STATE A (top, initial) ======= -->
+  <circle cx="100" cy="72" r="22" fill="none" stroke="#4f9cf9" stroke-width="2.5">
+    <!-- Active during t=0..0.2 and t=0.8..1 (after return from C) -->
+    <animate attributeName="stroke-opacity"
+      values="1;1;0.3;0.3;1;1"
+      dur="4.5s" repeatCount="indefinite"
+      keyTimes="0;0.15;0.22;0.75;0.82;1"/>
+  </circle>
+  <circle cx="100" cy="72" r="22" fill="#4f9cf9">
+    <animate attributeName="fill-opacity"
+      values="0.18;0.18;0;0;0.18;0.18"
+      dur="4.5s" repeatCount="indefinite"
+      keyTimes="0;0.15;0.22;0.75;0.82;1"/>
+  </circle>
+  <circle cx="100" cy="72" r="5.5" fill="#4f9cf9"/>
+
+  <!-- ======= STATE B (right) ======= -->
+  <circle cx="160" cy="110" r="22" fill="none" stroke="#4f9cf9" stroke-width="2.5">
+    <animate attributeName="stroke-opacity"
+      values="0.3;0.3;1;1;0.3;0.3"
+      dur="4.5s" repeatCount="indefinite"
+      keyTimes="0;0.15;0.22;0.45;0.52;1"/>
+  </circle>
+  <circle cx="160" cy="110" r="22" fill="#4f9cf9">
+    <animate attributeName="fill-opacity"
+      values="0;0;0.18;0.18;0;0"
+      dur="4.5s" repeatCount="indefinite"
+      keyTimes="0;0.15;0.22;0.45;0.52;1"/>
+  </circle>
+  <circle cx="160" cy="110" r="5.5" fill="#4f9cf9"/>
+
+  <!-- ======= STATE C (bottom-center, violet) ======= -->
+  <circle cx="100" cy="155" r="22" fill="none" stroke="#a78bfa" stroke-width="2.5">
+    <animate attributeName="stroke-opacity"
+      values="0.3;0.3;1;1;0.3;0.3"
+      dur="4.5s" repeatCount="indefinite"
+      keyTimes="0;0.45;0.52;0.75;0.82;1"/>
+  </circle>
+  <circle cx="100" cy="155" r="22" fill="#a78bfa">
+    <animate attributeName="fill-opacity"
+      values="0;0;0.18;0.18;0;0"
+      dur="4.5s" repeatCount="indefinite"
+      keyTimes="0;0.45;0.52;0.75;0.82;1"/>
+  </circle>
+  <circle cx="100" cy="155" r="5.5" fill="#a78bfa"/>
+
+</svg>
