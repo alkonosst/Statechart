@@ -494,7 +494,7 @@ hsm.reset(); // back to initial state, all history cleared
 ## Optimization
 
 By default, the library uses `std::function` to store guards and actions, which allows for flexible
-lambdas with captures but incurs heap allocation. If you want to avoid the `std::function` memory
+lambdas with captures, but it uses more memory. If you want to avoid the `std::function` memory
 overhead and guarantee zero dynamic allocation (_not using captures_), you can enable function
 pointers by defining `STATECHART_NO_STD_FUNCTION` **before** including the library (_or in
 build_flags in platformio.ini_). This replaces `std::function` with raw function pointers (`void(*)()`
