@@ -33,7 +33,10 @@
  *   - MaxStates overflow sets isValid() to false
  */
 
-#include <Arduino.h>
+#ifdef ARDUINO
+#  include <Arduino.h>
+#endif
+
 #include <unity.h>
 
 #include <Statechart.h>
@@ -479,13 +482,18 @@ void test_all_guards_fail_returns_false() {
 /* ---------------------------------------------------------------------------------------------- */
 
 void test_overflow_isvalid() {
-  HSM<S, E, 2, 4> fsm("t_overflow", S::A); // MaxStates = 2
+  HSM<S, E, 4, 4> fsm("t_overflow", S::A); // MaxStates = 4
   fsm.addState(S::A);
   fsm.addState(S::B);
+  fsm.addState(S::C);
+  fsm.addState(S::D);
   TEST_ASSERT_TRUE(fsm.isValid());
 
-  fsm.addState(S::C); // exceeds MaxStates
+  fsm.addState(S::PARENT); // exceeds MaxStates
   TEST_ASSERT_FALSE(fsm.isValid());
+
+  fsm.start(); // start() on an invalid HSM is a no-op
+  TEST_ASSERT_FALSE(fsm.hasStarted());
 }
 
 /* ---------------------------------------------------------------------------------------------- */
@@ -534,11 +542,142 @@ void test_internal_exit_not_fired() {
 }
 
 /* ---------------------------------------------------------------------------------------------- */
-/*                                             Runner                                             */
+/*               addState() on the same id returns the existing slot (idempotent)                 */
 /* ---------------------------------------------------------------------------------------------- */
 
-void setup() {
-  delay(2000);
+void test_add_state_twice_same_id() {
+  // Configuration may be split across multiple addState() calls on the same id.
+  HSM<S, E, 4, 4> fsm("t_add_twice", S::A);
+  fsm.addState(S::A).onEnter([] {});
+  fsm.addState(S::A).on(E::GO, S::B); // same id again -> reuses the existing slot
+  fsm.addState(S::B);
+  fsm.start();
+
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
+  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*                 Exceeding MaxTransitions with external transitions sets overflow               */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_max_transitions_overflow_external() {
+  HSM<S, E, 4, 4> fsm("t_tr_over_ext", S::A); // MaxTransitions = 4
+  fsm.addState(S::A)
+    .on(E::GO, S::B)
+    .on(E::BACK, S::B)
+    .on(E::OTHER, S::B)
+    .on(E::INTERNAL, S::B);           // pool is now full (4)
+  fsm.addState(S::B).on(E::GO, S::A); // exceeds MaxTransitions
+
+  TEST_ASSERT_FALSE(fsm.isValid());
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*                 Exceeding MaxTransitions with internal transitions sets overflow               */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_max_transitions_overflow_internal() {
+  HSM<S, E, 4, 4> fsm("t_tr_over_int", S::A); // MaxTransitions = 4
+  fsm.addState(S::A)
+    .onInternal(E::GO, [] {})
+    .onInternal(E::BACK, [] {})
+    .onInternal(E::OTHER, [] {})
+    .onInternal(E::INTERNAL, [] {});           // pool is now full (4)
+  fsm.addState(S::B).onInternal(E::GO, [] {}); // exceeds MaxTransitions
+
+  TEST_ASSERT_FALSE(fsm.isValid());
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*                 Internal transition with an empty action just swallows the event               */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_internal_empty_action() {
+  HSM<S, E, 4, 4> fsm("t_internal_noaction", S::A);
+  fsm.addState(S::A).onInternal(E::GO, {}); // internal transition without an action
+  fsm.start();
+
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));                    // handled, but nothing runs
+  TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState()); // no state change
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*           Dispatch skips a same-state transition registered for a different event              */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_dispatch_skips_other_event_same_state() {
+  // A owns BACK (first in the pool) and GO (second). Dispatching GO must skip the BACK transition
+  // that belongs to the same state before reaching the matching GO transition.
+  HSM<S, E, 4, 4> fsm("t_skip_event", S::A);
+  fsm.addState(S::A).on(E::BACK, S::C).on(E::GO, S::B);
+  fsm.addState(S::B);
+  fsm.addState(S::C);
+  fsm.start();
+
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
+  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*              Defensive: child referencing an unregistered parent and target                    */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_malformed_unregistered_states() {
+  // A child references a parent that was never registered, and transitions to an unregistered
+  // target. Lookups that miss must stop the walk cleanly instead of crashing.
+  HSM<S, E, 4, 4> fsm("t_malformed", S::CHILD1);
+  fsm.addState(S::CHILD1).parent(S::PARENT).on(E::GO, S::B); // PARENT and B never registered
+  fsm.start();
+  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState());
+
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO)); // CHILD1 -> B (unregistered, becomes the current leaf)
+  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*           Defensive: event propagation and isInState() stop at an unregistered parent          */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_malformed_event_propagation() {
+  HSM<S, E, 4, 4> fsm("t_malformed2", S::CHILD1);
+  fsm.addState(S::CHILD1).parent(S::PARENT); // PARENT never registered, no handler for GO
+  fsm.start();
+
+  TEST_ASSERT_FALSE(fsm.dispatch(E::GO)); // propagation to PARENT misses -> unhandled
+  TEST_ASSERT_FALSE(fsm.isInState(S::A)); // ancestor walk stops at the unregistered PARENT
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*               Defensive: a parent cycle does not cause an infinite loop                        */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_cyclic_config_no_infinite_loop() {
+  // A <-> B form a parent cycle. The MaxStates cap on the enter/LCA walks must bound the iteration
+  // so neither start() nor dispatch() hangs.
+  HSM<S, E, 4, 4> fsm("t_cycle", S::A);
+  fsm.addState(S::A).parent(S::B).on(E::GO, S::B);
+  fsm.addState(S::B).parent(S::A);
+  fsm.start();
+  TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState());
+
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
+  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*                                             Runners                                            */
+/* ---------------------------------------------------------------------------------------------- */
+
+void setUp(void) {
+  // set stuff up here
+}
+
+void tearDown(void) {
+  // clean stuff up here
+}
+
+int runUnityTests(void) {
   UNITY_BEGIN();
 
   RUN_TEST(test_simple_transition);
@@ -566,8 +705,26 @@ void setup() {
   RUN_TEST(test_has_started);
   RUN_TEST(test_reset_before_start_noop);
   RUN_TEST(test_internal_exit_not_fired);
+  RUN_TEST(test_add_state_twice_same_id);
+  RUN_TEST(test_max_transitions_overflow_external);
+  RUN_TEST(test_max_transitions_overflow_internal);
+  RUN_TEST(test_internal_empty_action);
+  RUN_TEST(test_dispatch_skips_other_event_same_state);
+  RUN_TEST(test_malformed_unregistered_states);
+  RUN_TEST(test_malformed_event_propagation);
+  RUN_TEST(test_cyclic_config_no_infinite_loop);
 
-  UNITY_END();
+  return UNITY_END();
 }
 
+// For native
+int main(void) { return runUnityTests(); }
+
+// For Arduino framework
+#ifdef ARDUINO
+void setup() {
+  delay(2000);
+  runUnityTests();
+}
 void loop() {}
+#endif
