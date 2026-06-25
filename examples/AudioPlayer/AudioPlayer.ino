@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/** Explanation of this example:
+/**
+ * Audio Player Example Overview:
  * - This example demonstrates an audio player that remembers the active playback mode (Normal,
  *   Shuffle, Repeat) across pause and stop events. Shallow history on the Playing composite state
  *   saves the last active direct child on exit and restores it on the next re-entry, so the user
@@ -95,9 +96,9 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("-------------------------");
-  Serial.println("Statechart - Audio Player");
-  Serial.println("-------------------------");
+  Serial.println("---------------------------------");
+  Serial.println("Statechart - Audio Player Example");
+  Serial.println("---------------------------------");
 
   setupHSM();
 

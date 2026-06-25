@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/** Explanation of this example:
+/**
+ * Pushbutton Example Overview:
  * - This example demonstrates a pushbutton driver that absorbs electrical bounce and supports
  *   configurable auto-repeat while held. Internal transitions let the state machine react to events
  *   without triggering exit/entry callbacks and without changing the active state.
@@ -94,9 +95,9 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("-----------------------");
-  Serial.println("Statechart - Pushbutton");
-  Serial.println("-----------------------");
+  Serial.println("-------------------------------");
+  Serial.println("Statechart - Pushbutton Example");
+  Serial.println("-------------------------------");
 
   setupHSM();
 

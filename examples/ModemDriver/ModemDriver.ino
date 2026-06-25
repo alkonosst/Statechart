@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/** Explanation of this example:
+/**
+ * Modem Driver Example Overview:
  * - This example demonstrates a cellular modem driver with a multi-level state hierarchy. The modem
  *   powers on, registers on the network, connects, and sends data with automatic retry. Events
  *   defined on composite parent states are inherited by all children, so Reset and SimFail only
@@ -170,9 +171,9 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("-------------------------");
-  Serial.println("Statechart - Modem Driver");
-  Serial.println("-------------------------");
+  Serial.println("---------------------------------");
+  Serial.println("Statechart - Modem Driver Example");
+  Serial.println("---------------------------------");
 
   setupHSM();
 

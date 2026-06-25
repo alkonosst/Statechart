@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/** Explanation of this example:
+/**
+ * Pump Controller Example Overview:
  * - This example demonstrates a water pump controller that uses only raw function pointers for all
  *   callbacks (std::function disabled). When STATECHART_NO_STD_FUNCTION is defined, the library
  *   replaces std::function with void(*)() for actions and bool(*)() for guards. Callbacks must be
@@ -92,9 +93,9 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("----------------------------");
-  Serial.println("Statechart - Pump Controller");
-  Serial.println("----------------------------");
+  Serial.println("------------------------------------");
+  Serial.println("Statechart - Pump Controller Example");
+  Serial.println("------------------------------------");
 
   setupHSM();
 
