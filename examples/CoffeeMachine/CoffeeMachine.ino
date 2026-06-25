@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/** Explanation of this example:
+/**
+ * Coffee Machine Example Overview:
  * - This example demonstrates a coffee machine controller with a multi-level state hierarchy. The
  *   machine can be powered on and off, brew espresso through a two-step grind-then-extract
  *   sequence, or steam milk. An event defined on a composite parent is automatically inherited by
@@ -108,9 +109,9 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("---------------------------");
-  Serial.println("Statechart - Coffee Machine");
-  Serial.println("---------------------------");
+  Serial.println("-----------------------------------");
+  Serial.println("Statechart - Coffee Machine Example");
+  Serial.println("-----------------------------------");
 
   setupHSM();
 

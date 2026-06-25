@@ -5,28 +5,17 @@
  */
 
 /**
- * Audio Player Example Overview:
- * - This example demonstrates an audio player that remembers the active playback mode (Normal,
- *   Shuffle, Repeat) across pause and stop events. Shallow history on the Playing composite state
- *   saves the last active direct child on exit and restores it on the next re-entry, so the user
- *   resumes exactly where they left off without any extra tracking code.
- * - The example covers the following features:
- *   - withHistory() [H shallow]: on re-entry to a composite state, the last active direct child is
- *     restored instead of always starting from initial()
- *   - reset() clears all saved history so the next entry starts from initial()
- *
- * State hierarchy:
- *   Stopped
- *   Playing [H shallow, initial: Normal]
- *     Normal
- *     Shuffle
- *     Repeat
- *   Paused
+ * Audio Player Native Example Overview:
+ * - Mirrors the Audio Player Arduino example, swapping Serial for printf. Useful for native builds.
+ * - Build and run locally:
+ *   PowerShell: $env:EXAMPLE="examples/AudioPlayerNative"; pio run -e native-example -t exec
+ *   bash/WSL  : export EXAMPLE="examples/AudioPlayerNative"; pio run -e native-example -t exec
  */
 
-#include <Arduino.h>
+#include <cstdio>
 
 #include <Statechart.h>
+
 using namespace Statechart;
 
 // States and events
@@ -39,10 +28,10 @@ enum class Event : uint8_t { Play, Pause, Stop, NextMode };
 //   - MaxTransitions: total number of transitions across all states; every on() call adds one
 HSM<State, Event, 6, 8> hsm("AudioPlayer", State::Stopped);
 
-void setupHSM() {
+bool setupHSM() {
   // Setup transitions
   hsm.addState(State::Stopped)
-    .onEnter([] { Serial.println("  [AP] Stopped"); })
+    .onEnter([] { printf("  [AP] Stopped\n"); })
     .on(Event::Play, State::Playing);
 
   // withHistory() saves the last active direct child (Normal/Shuffle/Repeat) so that Play after
@@ -50,28 +39,28 @@ void setupHSM() {
   hsm.addState(State::Playing)
     .initial(State::Normal)
     .withHistory()
-    .onEnter([] { Serial.println("  [AP] Playing (enter)"); })
-    .onExit([] { Serial.println("  [AP] Playing (exit)"); })
+    .onEnter([] { printf("  [AP] Playing (enter)\n"); })
+    .onExit([] { printf("  [AP] Playing (exit)\n"); })
     .on(Event::Pause, State::Paused)
     .on(Event::Stop, State::Stopped);
 
   hsm.addState(State::Normal)
     .parent(State::Playing)
-    .onEnter([] { Serial.println("  [AP] Mode: Normal"); })
+    .onEnter([] { printf("  [AP] Mode: Normal\n"); })
     .on(Event::NextMode, State::Shuffle);
 
   hsm.addState(State::Shuffle)
     .parent(State::Playing)
-    .onEnter([] { Serial.println("  [AP] Mode: Shuffle"); })
+    .onEnter([] { printf("  [AP] Mode: Shuffle\n"); })
     .on(Event::NextMode, State::Repeat);
 
   hsm.addState(State::Repeat)
     .parent(State::Playing)
-    .onEnter([] { Serial.println("  [AP] Mode: Repeat"); })
+    .onEnter([] { printf("  [AP] Mode: Repeat\n"); })
     .on(Event::NextMode, State::Normal);
 
   hsm.addState(State::Paused)
-    .onEnter([] { Serial.println("  [AP] Paused"); })
+    .onEnter([] { printf("  [AP] Paused\n"); })
     .on(Event::Play, State::Playing)
     .on(Event::Stop, State::Stopped);
 
@@ -79,9 +68,8 @@ void setupHSM() {
   // states or transitions) and other common mistakes. Always call this before start() to catch
   // errors early.
   if (!hsm.isValid()) {
-    Serial.println("HSM sizing invalid!");
-    while (true)
-      ;
+    printf("HSM sizing invalid!\n");
+    return false;
   }
 
   // Start the machine: runs the entry chain for the initial state and marks the machine as started.
@@ -90,39 +78,38 @@ void setupHSM() {
   // Debug dump shows the full state and transition configuration in a human-readable format.
   // Needs `STATECHART_LOG_LEVEL >= Info` to print.
   hsm.debugDump();
+
+  return true;
 }
 
-void setup() {
-  Serial.begin(115200);
-  delay(2000);
+int main() {
+  printf("----------------------------------------\n");
+  printf("Statechart - Audio Player Native Example\n");
+  printf("----------------------------------------\n");
 
-  Serial.println("---------------------------------");
-  Serial.println("Statechart - Audio Player Example");
-  Serial.println("---------------------------------");
-
-  setupHSM();
+  if (!setupHSM()) return 1;
 
   // Play and switch to Shuffle
-  Serial.println("\n-- Play and switch to Shuffle --");
+  printf("\n-- Play and switch to Shuffle --\n");
   hsm.dispatch(Event::Play);     // Stopped -> Playing -> Normal (initial)
   hsm.dispatch(Event::NextMode); // Normal  -> Shuffle
 
   // Pause and resume: history restores Shuffle
-  Serial.println("\n-- Pause and resume (history should restore Shuffle) --");
+  printf("\n-- Pause and resume (history should restore Shuffle) --\n");
   hsm.dispatch(Event::Pause); // Paused (Playing saves history: Shuffle)
   hsm.dispatch(Event::Play);  // Playing -> Shuffle (history!)
 
   // Switch to Repeat, stop and play: history still active
-  Serial.println("\n-- Switch to Repeat, stop and play again --");
+  printf("\n-- Switch to Repeat, stop and play again --\n");
   hsm.dispatch(Event::NextMode); // Shuffle -> Repeat
   hsm.dispatch(Event::Stop);     // Stopped (Playing saves history: Repeat)
   hsm.dispatch(Event::Play);     // Playing -> Repeat (history!)
 
   // reset() clears all history
-  Serial.println("\n-- reset() clears history: next Play starts from Normal --");
+  printf("\n-- reset() clears history: next Play starts from Normal --\n");
   hsm.dispatch(Event::Stop); // Stopped
   hsm.reset();               // exits Stopped, clears all history, re-enters Stopped
   hsm.dispatch(Event::Play); // Playing -> Normal (initial, history gone)
-}
 
-void loop() { delay(1000); }
+  return 0;
+}

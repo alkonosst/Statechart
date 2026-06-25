@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/** Explanation of this example:
+/**
+ * Vending Machine Example Overview:
  * - This example demonstrates a coin-operated vending machine with a 150-cent product price. It
  *   models coin accumulation, product selection with stock check, and cancellation flow.
  * - The example covers the following features:
@@ -113,9 +114,9 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("----------------------------");
-  Serial.println("Statechart - Vending Machine");
-  Serial.println("----------------------------");
+  Serial.println("------------------------------------");
+  Serial.println("Statechart - Vending Machine Example");
+  Serial.println("------------------------------------");
 
   setupHSM();
 

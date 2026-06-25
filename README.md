@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  <b>Hierarchical State Machine (HSM) library for Arduino with zero dynamic memory allocation.</b>
+  <b>Hierarchical State Machine (HSM) library for C++11 with zero dynamic memory allocation.</b>
 </p>
 
 <p align="center">
@@ -16,6 +16,9 @@
     <img src="https://badges.registry.platformio.org/packages/alkonosst/library/Statechart.svg" alt="PlatformIO Registry">
   </a>
   <br><br>
+  <a href="https://codecov.io/github/alkonosst/Statechart">
+    <img src="https://img.shields.io/codecov/c/github/alkonosst/Statechart?style=for-the-badge&logo=codecov&logoColor=white&labelColor=F01F7A" alt="Coverage">
+  </a>
   <a href="https://opensource.org/licenses/MIT">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge&color=blue" alt="License">
   </a>
@@ -35,6 +38,7 @@
 - [Installation](#installation)
   - [PlatformIO](#platformio)
   - [Arduino IDE](#arduino-ide)
+  - [CMake](#cmake)
 - [Usage](#usage)
   - [Including the library](#including-the-library)
   - [Namespace](#namespace)
@@ -66,7 +70,7 @@
 
 # Description
 
-**Statechart** is an Arduino library for building Hierarchical State Machines (HSMs) in C++11. States, transitions, guards, and actions are registered once in `setup()` using a fluent builder API. Events are dispatched at runtime via `dispatch()`.
+**Statechart** is an embedded/native library for building Hierarchical State Machines (HSMs) in C++11. States, transitions, guards, and actions are registered once using a fluent builder API. Events are dispatched at runtime via `dispatch()`.
 
 The library follows UML statechart semantics: composite states with initial children, shallow and deep history, event inheritance up the parent chain, and proper LCA-based exit/entry ordering. All storage is statically allocated at compile time through template parameters; there is no dynamic memory allocation.
 
@@ -126,8 +130,6 @@ void setup() {
   hsm.dispatch(Event::Next); // Green  -> Yellow
   hsm.dispatch(Event::Next); // Yellow -> Red
 }
-
-void loop() {}
 ```
 
 # Installation
@@ -153,6 +155,23 @@ lib_deps =
 2. Go to **Sketch > Manage Libraries...**
 3. Search for **"Statechart"**.
 4. Click **Install**.
+
+## CMake
+
+For desktop C++ projects, pull the library with `FetchContent` and link the `alkonosst::Statechart`
+target:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+  Statechart
+  GIT_REPOSITORY https://github.com/alkonosst/Statechart.git
+  GIT_TAG        vx.y.z # pin a release tag (recommended), or a branch/commit
+)
+FetchContent_MakeAvailable(Statechart)
+
+target_link_libraries(your_app PRIVATE alkonosst::Statechart)
+```
 
 # Usage
 
@@ -197,7 +216,7 @@ If `MaxStates` or `MaxTransitions` is exceeded during `addState()` calls, `isVal
 
 ## Registering States
 
-Call `addState()` once per state, then chain builder methods. Call this during `setup()` before `start()`:
+Call `addState()` once per state, then chain builder methods. Call this during setup before `start()`:
 
 ```cpp
 // On Event::Start, transition from Idle to Running, printing messages on entry and exit.
@@ -437,7 +456,7 @@ hsm.start();
 hsm.debugDump();
 ```
 
-Dispatch events from `loop()` or any normal task context:
+Dispatch events from a loop or any normal task context:
 
 ```cpp
 void loop() {
@@ -447,7 +466,10 @@ void loop() {
 ```
 
 > [!CAUTION]
-> Do not call `dispatch()` from an interrupt handler (ISR). It executes user callbacks (`onEnter`, `onExit`, guards, actions), uses logging functions, and allocates temporary arrays on the stack — none of which are ISR-safe. Instead, set a flag or enqueue the event in the ISR and process it in `loop()`:
+> Do not call `dispatch()` from an interrupt handler (ISR). It executes user callbacks (`onEnter`,
+> `onExit`, guards, actions), uses logging functions, and allocates temporary arrays on the stack -
+> none of which are ISR-safe. Instead, set a flag or enqueue the event in the ISR and process it in
+> a loop:
 >
 > ```cpp
 > volatile MyEvent pending_event;

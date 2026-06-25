@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/** Explanation of this example:
+/**
+ * Traffic Light Example Overview:
  * - This example demonstrates a simple traffic light controller using the HSM framework. It models
  *   a traffic light that cycles through Red, Green, and Yellow states on each Tick event.
  * - The example covers the following features:
@@ -82,9 +83,9 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("--------------------------");
-  Serial.println("Statechart - Traffic Light");
-  Serial.println("--------------------------");
+  Serial.println("----------------------------------");
+  Serial.println("Statechart - Traffic Light Example");
+  Serial.println("----------------------------------");
 
   // hasStarted() is false before start()
   Serial.printf("  hasStarted() before start: %s\n", hsm.hasStarted() ? "true" : "false");

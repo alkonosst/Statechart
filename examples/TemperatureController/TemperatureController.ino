@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/** Explanation of this example:
+/**
+ * Temperature Controller Example Overview:
  * - This example demonstrates a temperature process controller with a deep state hierarchy. The
  *   controller initializes, calibrates, then runs a heating/holding/cooling cycle. A fault can
  *   interrupt at any point; deep history on Running ensures the exact leaf state is restored after
@@ -165,9 +166,9 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("-----------------------------------");
-  Serial.println("Statechart - Temperature Controller");
-  Serial.println("-----------------------------------");
+  Serial.println("-------------------------------------------");
+  Serial.println("Statechart - Temperature Controller Example");
+  Serial.println("-------------------------------------------");
 
   setupHSM();
 
