@@ -52,7 +52,7 @@ enum class S : uint8_t { A = 0, B = 1, C = 2, D = 3, PARENT = 4, CHILD1 = 5, CHI
 enum class E : uint8_t { GO = 0, BACK = 1, OTHER = 2, INTERNAL = 3 };
 
 /* ---------------------------------------------------------------------------------------------- */
-/*                                   Simple external transition                                   */
+/*                                      External transitions                                      */
 /* ---------------------------------------------------------------------------------------------- */
 
 void test_simple_transition() {
@@ -66,10 +66,6 @@ void test_simple_transition() {
   TEST_ASSERT_TRUE(handled);
   TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
 }
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                             Entry and exit actions order test                                  */
-/* ---------------------------------------------------------------------------------------------- */
 
 void test_entry_exit_order() {
   static int call_order[4];
@@ -92,10 +88,6 @@ void test_entry_exit_order() {
   TEST_ASSERT_EQUAL(3, call_order[2]); // enter B on transition
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                       Transition action is called between exit and entry                       */
-/* ---------------------------------------------------------------------------------------------- */
-
 void test_transition_action_order() {
   static int seq[4];
   static int idx = 0;
@@ -117,7 +109,7 @@ void test_transition_action_order() {
 }
 
 /* ---------------------------------------------------------------------------------------------- */
-/*                                  Guard allows transition test                                  */
+/*                                             Guards                                             */
 /* ---------------------------------------------------------------------------------------------- */
 
 void test_guard_allows() {
@@ -130,10 +122,6 @@ void test_guard_allows() {
   TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                  Guard denies transition test                                  */
-/* ---------------------------------------------------------------------------------------------- */
-
 void test_guard_denies() {
   HSM<S, E, 4, 4> fsm("t_guard_deny", S::A);
   fsm.addState(S::A).on(E::GO, S::B, [] { return false; });
@@ -143,10 +131,6 @@ void test_guard_denies() {
   TEST_ASSERT_FALSE(fsm.dispatch(E::GO));
   TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState()); // unchanged
 }
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                 Multiple transitions for the same event, fallthrough with guard                */
-/* ---------------------------------------------------------------------------------------------- */
 
 void test_guard_fallthrough() {
   static int counter = 0;
@@ -172,13 +156,11 @@ void test_guard_fallthrough() {
   TEST_ASSERT_EQUAL((int)S::C, (int)fsm.getCurrentState());
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                  Unhandled event returns false                                 */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_unhandled_event() {
-  HSM<S, E, 4, 4> fsm("t_unhandled", S::A);
-  fsm.addState(S::A);
+void test_all_guards_fail_returns_false() {
+  HSM<S, E, 4, 4> fsm("t_all_guards_fail", S::A);
+  fsm.addState(S::A).on(E::GO, S::B, [] { return false; }).on(E::GO, S::C, [] { return false; });
+  fsm.addState(S::B);
+  fsm.addState(S::C);
   fsm.start();
 
   TEST_ASSERT_FALSE(fsm.dispatch(E::GO));
@@ -186,41 +168,7 @@ void test_unhandled_event() {
 }
 
 /* ---------------------------------------------------------------------------------------------- */
-/*                         Event inheritance - child propagates to parent                         */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_event_inheritance() {
-  HSM<S, E, 4, 4> fsm("t_inherit", S::CHILD1);
-  // PARENT handles GO, CHILD1 does not -> should inherit
-  fsm.addState(S::PARENT).on(E::GO, S::C);
-  fsm.addState(S::CHILD1).parent(S::PARENT);
-  fsm.addState(S::C);
-  fsm.start();
-
-  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState());
-  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
-  TEST_ASSERT_EQUAL((int)S::C, (int)fsm.getCurrentState());
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                              Composite state with initial() child                              */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_initial_child() {
-  HSM<S, E, 4, 4> fsm("t_initial", S::A);
-  // Transition into PARENT directly; should land in CHILD1 via initial().
-  fsm.addState(S::A).on(E::GO, S::PARENT);
-  fsm.addState(S::PARENT).initial(S::CHILD1);
-  fsm.addState(S::CHILD1).parent(S::PARENT);
-  fsm.addState(S::CHILD2).parent(S::PARENT);
-  fsm.start();
-
-  fsm.dispatch(E::GO);
-  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState());
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                        Internal transition does not change current state                       */
+/*                                      Internal transitions                                      */
 /* ---------------------------------------------------------------------------------------------- */
 
 void test_internal_transition() {
@@ -242,10 +190,6 @@ void test_internal_transition() {
   TEST_ASSERT_EQUAL(1, enter_count); // onEnter not called again
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                 Internal transition with guard                                 */
-/* ---------------------------------------------------------------------------------------------- */
-
 void test_internal_transition_guard() {
   static int action_count = 0;
   action_count            = 0;
@@ -266,8 +210,100 @@ void test_internal_transition_guard() {
   TEST_ASSERT_EQUAL(1, action_count);
 }
 
+void test_internal_inherited_from_parent() {
+  static int action_count = 0;
+  action_count            = 0;
+
+  HSM<S, E, 4, 4> fsm("t_internal_inherit", S::CHILD1);
+  fsm.addState(S::PARENT).onInternal(E::GO, [] { action_count++; });
+  fsm.addState(S::CHILD1).parent(S::PARENT);
+  fsm.start();
+
+  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState());
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO)); // GO not on CHILD1; inherited from PARENT as internal
+  TEST_ASSERT_EQUAL(1, action_count);
+  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState()); // no state change
+}
+
+void test_internal_exit_not_fired() {
+  static int exit_count = 0;
+  exit_count            = 0;
+
+  HSM<S, E, 4, 4> fsm("t_internal_no_exit", S::A);
+  fsm.addState(S::A).onExit([] { exit_count++; }).onInternal(E::GO, [] {});
+  fsm.start();
+
+  fsm.dispatch(E::GO);
+  fsm.dispatch(E::GO);
+  TEST_ASSERT_EQUAL(0, exit_count);
+}
+
+void test_internal_empty_action() {
+  HSM<S, E, 4, 4> fsm("t_internal_noaction", S::A);
+  fsm.addState(S::A).onInternal(E::GO, {}); // internal transition without an action
+  fsm.start();
+
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));                    // handled, but nothing runs
+  TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState()); // no state change
+}
+
 /* ---------------------------------------------------------------------------------------------- */
-/*                              Shallow history restores direct child                             */
+/*                                           Hierarchy                                            */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_event_inheritance() {
+  HSM<S, E, 4, 4> fsm("t_inherit", S::CHILD1);
+  // PARENT handles GO, CHILD1 does not -> should inherit
+  fsm.addState(S::PARENT).on(E::GO, S::C);
+  fsm.addState(S::CHILD1).parent(S::PARENT);
+  fsm.addState(S::C);
+  fsm.start();
+
+  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState());
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
+  TEST_ASSERT_EQUAL((int)S::C, (int)fsm.getCurrentState());
+}
+
+void test_initial_child() {
+  HSM<S, E, 4, 4> fsm("t_initial", S::A);
+  // Transition into PARENT directly; should land in CHILD1 via initial().
+  fsm.addState(S::A).on(E::GO, S::PARENT);
+  fsm.addState(S::PARENT).initial(S::CHILD1);
+  fsm.addState(S::CHILD1).parent(S::PARENT);
+  fsm.addState(S::CHILD2).parent(S::PARENT);
+  fsm.start();
+
+  fsm.dispatch(E::GO);
+  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState());
+}
+
+void test_lca_exits_entries() {
+  // Hierarchy:
+  //   PARENT
+  //     CHILD1 --GO--> CHILD2
+  //     CHILD2
+  // Transitioning CHILD1 -> CHILD2 should only exit CHILD1 and enter CHILD2,
+  // NOT exit/enter PARENT (since it is the LCA).
+
+  static int parent_enter = 0;
+  static int parent_exit  = 0;
+  parent_enter            = 0;
+  parent_exit             = 0;
+
+  HSM<S, E, 4, 4> fsm("t_lca", S::CHILD1);
+  fsm.addState(S::PARENT).onEnter([] { parent_enter++; }).onExit([] { parent_exit++; });
+  fsm.addState(S::CHILD1).parent(S::PARENT).on(E::GO, S::CHILD2);
+  fsm.addState(S::CHILD2).parent(S::PARENT);
+  fsm.start(); // enters PARENT then CHILD1 -> parent_enter = 1
+
+  fsm.dispatch(E::GO);                // CHILD1 -> CHILD2; LCA = PARENT, must not exit/enter PARENT
+  TEST_ASSERT_EQUAL(1, parent_enter); // not incremented again
+  TEST_ASSERT_EQUAL(0, parent_exit);  // not exited
+  TEST_ASSERT_EQUAL((int)S::CHILD2, (int)fsm.getCurrentState());
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*                                            History                                             */
 /* ---------------------------------------------------------------------------------------------- */
 
 void test_shallow_history() {
@@ -297,10 +333,6 @@ void test_shallow_history() {
   TEST_ASSERT_EQUAL((int)S::CHILD2, (int)fsm.getCurrentState());
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                              Deep history restores full leaf path                              */
-/* ---------------------------------------------------------------------------------------------- */
-
 void test_deep_history() {
   // Hierarchy: A --GO--> PARENT[H* initial:CHILD1]
   //              CHILD1 --GO--> CHILD2
@@ -326,105 +358,6 @@ void test_deep_history() {
   TEST_ASSERT_EQUAL((int)S::CHILD2, (int)fsm.getCurrentState());
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                     isInState() returns true for current and all ancestors                     */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_is_in_state() {
-  HSM<S, E, 4, 4> fsm("t_isinstate", S::CHILD1);
-  fsm.addState(S::PARENT);
-  fsm.addState(S::CHILD1).parent(S::PARENT);
-  fsm.start();
-
-  TEST_ASSERT_TRUE(fsm.isInState(S::CHILD1));
-  TEST_ASSERT_TRUE(fsm.isInState(S::PARENT)); // ancestor check
-  TEST_ASSERT_FALSE(fsm.isInState(S::CHILD2));
-  TEST_ASSERT_FALSE(fsm.isInState(S::A));
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                       reset() returns to initial state and re-fires entry                      */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_reset() {
-  static int enter_count = 0;
-  enter_count            = 0;
-
-  HSM<S, E, 4, 4> fsm("t_reset", S::A);
-  fsm.addState(S::A).onEnter([] { enter_count++; }).on(E::GO, S::B);
-  fsm.addState(S::B);
-  fsm.start(); // enter A -> enter_count = 1
-
-  fsm.dispatch(E::GO); // -> B
-  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
-
-  fsm.reset(); // exit B, enter A -> enter_count = 2
-  TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState());
-  TEST_ASSERT_EQUAL(2, enter_count);
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                             dispatch() before start() returns false                            */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_dispatch_before_start() {
-  HSM<S, E, 4, 4> fsm("t_no_start", S::A);
-  fsm.addState(S::A).on(E::GO, S::B);
-  fsm.addState(S::B);
-
-  TEST_ASSERT_FALSE(fsm.dispatch(E::GO));
-  TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState());
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                        start() called twice is a no-op (no double entry)                       */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_start_idempotent() {
-  static int enter_count = 0;
-  enter_count            = 0;
-
-  HSM<S, E, 4, 4> fsm("t_start_idem", S::A);
-  fsm.addState(S::A).onEnter([] { enter_count++; });
-  fsm.start();
-  fsm.start(); // second call is no-op
-
-  TEST_ASSERT_EQUAL(1, enter_count);
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                    LCA exits and entries are correct across hierarchy levels                   */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_lca_exits_entries() {
-  // Hierarchy:
-  //   PARENT
-  //     CHILD1 --GO--> CHILD2
-  //     CHILD2
-  // Transitioning CHILD1 -> CHILD2 should only exit CHILD1 and enter CHILD2,
-  // NOT exit/enter PARENT (since it is the LCA).
-
-  static int parent_enter = 0;
-  static int parent_exit  = 0;
-  parent_enter            = 0;
-  parent_exit             = 0;
-
-  HSM<S, E, 4, 4> fsm("t_lca", S::CHILD1);
-  fsm.addState(S::PARENT).onEnter([] { parent_enter++; }).onExit([] { parent_exit++; });
-  fsm.addState(S::CHILD1).parent(S::PARENT).on(E::GO, S::CHILD2);
-  fsm.addState(S::CHILD2).parent(S::PARENT);
-  fsm.start(); // enters PARENT then CHILD1 -> parent_enter = 1
-
-  fsm.dispatch(E::GO);                // CHILD1 -> CHILD2; LCA = PARENT, must not exit/enter PARENT
-  TEST_ASSERT_EQUAL(1, parent_enter); // not incremented again
-  TEST_ASSERT_EQUAL(0, parent_exit);  // not exited
-  TEST_ASSERT_EQUAL((int)S::CHILD2, (int)fsm.getCurrentState());
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*              reset() clears all saved history (next entry goes to initial())                   */
-/* ---------------------------------------------------------------------------------------------- */
-
 void test_reset_clears_history() {
   HSM<S, E, 4, 4> fsm("t_reset_history", S::A);
   fsm.addState(S::A).on(E::GO, S::PARENT);
@@ -444,42 +377,120 @@ void test_reset_clears_history() {
 }
 
 /* ---------------------------------------------------------------------------------------------- */
-/*         Internal transition defined on parent is inherited and executed by child               */
+/*                                            Dispatch                                            */
 /* ---------------------------------------------------------------------------------------------- */
 
-void test_internal_inherited_from_parent() {
-  static int action_count = 0;
-  action_count            = 0;
-
-  HSM<S, E, 4, 4> fsm("t_internal_inherit", S::CHILD1);
-  fsm.addState(S::PARENT).onInternal(E::GO, [] { action_count++; });
-  fsm.addState(S::CHILD1).parent(S::PARENT);
-  fsm.start();
-
-  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState());
-  TEST_ASSERT_TRUE(fsm.dispatch(E::GO)); // GO not on CHILD1; inherited from PARENT as internal
-  TEST_ASSERT_EQUAL(1, action_count);
-  TEST_ASSERT_EQUAL((int)S::CHILD1, (int)fsm.getCurrentState()); // no state change
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*               All guards failing on an event causes dispatch() to return false                 */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_all_guards_fail_returns_false() {
-  HSM<S, E, 4, 4> fsm("t_all_guards_fail", S::A);
-  fsm.addState(S::A).on(E::GO, S::B, [] { return false; }).on(E::GO, S::C, [] { return false; });
-  fsm.addState(S::B);
-  fsm.addState(S::C);
+void test_unhandled_event() {
+  HSM<S, E, 4, 4> fsm("t_unhandled", S::A);
+  fsm.addState(S::A);
   fsm.start();
 
   TEST_ASSERT_FALSE(fsm.dispatch(E::GO));
   TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState());
 }
 
+void test_dispatch_skips_other_event_same_state() {
+  // A owns BACK (first in the pool) and GO (second). Dispatching GO must skip the BACK transition
+  // that belongs to the same state before reaching the matching GO transition.
+  HSM<S, E, 4, 4> fsm("t_skip_event", S::A);
+  fsm.addState(S::A).on(E::BACK, S::C).on(E::GO, S::B);
+  fsm.addState(S::B);
+  fsm.addState(S::C);
+  fsm.start();
+
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
+  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
+}
+
 /* ---------------------------------------------------------------------------------------------- */
-/*               Exceeding MaxStates during construction sets isValid() to false                  */
+/*                                     Lifecycle and queries                                      */
 /* ---------------------------------------------------------------------------------------------- */
+
+void test_dispatch_before_start() {
+  HSM<S, E, 4, 4> fsm("t_no_start", S::A);
+  fsm.addState(S::A).on(E::GO, S::B);
+  fsm.addState(S::B);
+
+  TEST_ASSERT_FALSE(fsm.dispatch(E::GO));
+  TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState());
+}
+
+void test_start_idempotent() {
+  static int enter_count = 0;
+  enter_count            = 0;
+
+  HSM<S, E, 4, 4> fsm("t_start_idem", S::A);
+  fsm.addState(S::A).onEnter([] { enter_count++; });
+  fsm.start();
+  fsm.start(); // second call is no-op
+
+  TEST_ASSERT_EQUAL(1, enter_count);
+}
+
+void test_reset() {
+  static int enter_count = 0;
+  enter_count            = 0;
+
+  HSM<S, E, 4, 4> fsm("t_reset", S::A);
+  fsm.addState(S::A).onEnter([] { enter_count++; }).on(E::GO, S::B);
+  fsm.addState(S::B);
+  fsm.start(); // enter A -> enter_count = 1
+
+  fsm.dispatch(E::GO); // -> B
+  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
+
+  fsm.reset(); // exit B, enter A -> enter_count = 2
+  TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState());
+  TEST_ASSERT_EQUAL(2, enter_count);
+}
+
+void test_reset_before_start_noop() {
+  static int enter_count = 0;
+  enter_count            = 0;
+
+  HSM<S, E, 4, 4> fsm("t_reset_no_start", S::A);
+  fsm.addState(S::A).onEnter([] { enter_count++; });
+
+  fsm.reset(); // no-op: start() has not been called
+  TEST_ASSERT_EQUAL(0, enter_count);
+}
+
+void test_has_started() {
+  HSM<S, E, 4, 4> fsm("t_has_started", S::A);
+  fsm.addState(S::A);
+
+  TEST_ASSERT_FALSE(fsm.hasStarted());
+  fsm.start();
+  TEST_ASSERT_TRUE(fsm.hasStarted());
+}
+
+void test_is_in_state() {
+  HSM<S, E, 4, 4> fsm("t_isinstate", S::CHILD1);
+  fsm.addState(S::PARENT);
+  fsm.addState(S::CHILD1).parent(S::PARENT);
+  fsm.start();
+
+  TEST_ASSERT_TRUE(fsm.isInState(S::CHILD1));
+  TEST_ASSERT_TRUE(fsm.isInState(S::PARENT)); // ancestor check
+  TEST_ASSERT_FALSE(fsm.isInState(S::CHILD2));
+  TEST_ASSERT_FALSE(fsm.isInState(S::A));
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/*                                   Capacity and configuration                                   */
+/* ---------------------------------------------------------------------------------------------- */
+
+void test_add_state_twice_same_id() {
+  // Configuration may be split across multiple addState() calls on the same id.
+  HSM<S, E, 4, 4> fsm("t_add_twice", S::A);
+  fsm.addState(S::A).onEnter([] {});
+  fsm.addState(S::A).on(E::GO, S::B); // same id again -> reuses the existing slot
+  fsm.addState(S::B);
+  fsm.start();
+
+  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
+  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
+}
 
 void test_overflow_isvalid() {
   HSM<S, E, 4, 4> fsm("t_overflow", S::A); // MaxStates = 4
@@ -496,71 +507,6 @@ void test_overflow_isvalid() {
   TEST_ASSERT_FALSE(fsm.hasStarted());
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                      hasStarted() returns false before start(), true after                     */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_has_started() {
-  HSM<S, E, 4, 4> fsm("t_has_started", S::A);
-  fsm.addState(S::A);
-
-  TEST_ASSERT_FALSE(fsm.hasStarted());
-  fsm.start();
-  TEST_ASSERT_TRUE(fsm.hasStarted());
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                         reset() before start() is a no-op (no entry fired)                    */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_reset_before_start_noop() {
-  static int enter_count = 0;
-  enter_count            = 0;
-
-  HSM<S, E, 4, 4> fsm("t_reset_no_start", S::A);
-  fsm.addState(S::A).onEnter([] { enter_count++; });
-
-  fsm.reset(); // no-op: start() has not been called
-  TEST_ASSERT_EQUAL(0, enter_count);
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                   Internal transition does not fire onExit of the active state                 */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_internal_exit_not_fired() {
-  static int exit_count = 0;
-  exit_count            = 0;
-
-  HSM<S, E, 4, 4> fsm("t_internal_no_exit", S::A);
-  fsm.addState(S::A).onExit([] { exit_count++; }).onInternal(E::GO, [] {});
-  fsm.start();
-
-  fsm.dispatch(E::GO);
-  fsm.dispatch(E::GO);
-  TEST_ASSERT_EQUAL(0, exit_count);
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*               addState() on the same id returns the existing slot (idempotent)                 */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_add_state_twice_same_id() {
-  // Configuration may be split across multiple addState() calls on the same id.
-  HSM<S, E, 4, 4> fsm("t_add_twice", S::A);
-  fsm.addState(S::A).onEnter([] {});
-  fsm.addState(S::A).on(E::GO, S::B); // same id again -> reuses the existing slot
-  fsm.addState(S::B);
-  fsm.start();
-
-  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
-  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                 Exceeding MaxTransitions with external transitions sets overflow               */
-/* ---------------------------------------------------------------------------------------------- */
-
 void test_max_transitions_overflow_external() {
   HSM<S, E, 4, 4> fsm("t_tr_over_ext", S::A); // MaxTransitions = 4
   fsm.addState(S::A)
@@ -572,10 +518,6 @@ void test_max_transitions_overflow_external() {
 
   TEST_ASSERT_FALSE(fsm.isValid());
 }
-
-/* ---------------------------------------------------------------------------------------------- */
-/*                 Exceeding MaxTransitions with internal transitions sets overflow               */
-/* ---------------------------------------------------------------------------------------------- */
 
 void test_max_transitions_overflow_internal() {
   HSM<S, E, 4, 4> fsm("t_tr_over_int", S::A); // MaxTransitions = 4
@@ -590,37 +532,7 @@ void test_max_transitions_overflow_internal() {
 }
 
 /* ---------------------------------------------------------------------------------------------- */
-/*                 Internal transition with an empty action just swallows the event               */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_internal_empty_action() {
-  HSM<S, E, 4, 4> fsm("t_internal_noaction", S::A);
-  fsm.addState(S::A).onInternal(E::GO, {}); // internal transition without an action
-  fsm.start();
-
-  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));                    // handled, but nothing runs
-  TEST_ASSERT_EQUAL((int)S::A, (int)fsm.getCurrentState()); // no state change
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*           Dispatch skips a same-state transition registered for a different event              */
-/* ---------------------------------------------------------------------------------------------- */
-
-void test_dispatch_skips_other_event_same_state() {
-  // A owns BACK (first in the pool) and GO (second). Dispatching GO must skip the BACK transition
-  // that belongs to the same state before reaching the matching GO transition.
-  HSM<S, E, 4, 4> fsm("t_skip_event", S::A);
-  fsm.addState(S::A).on(E::BACK, S::C).on(E::GO, S::B);
-  fsm.addState(S::B);
-  fsm.addState(S::C);
-  fsm.start();
-
-  TEST_ASSERT_TRUE(fsm.dispatch(E::GO));
-  TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
-}
-
-/* ---------------------------------------------------------------------------------------------- */
-/*              Defensive: child referencing an unregistered parent and target                    */
+/*                              Defensive (malformed configuration)                               */
 /* ---------------------------------------------------------------------------------------------- */
 
 void test_malformed_unregistered_states() {
@@ -635,10 +547,6 @@ void test_malformed_unregistered_states() {
   TEST_ASSERT_EQUAL((int)S::B, (int)fsm.getCurrentState());
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*           Defensive: event propagation and isInState() stop at an unregistered parent          */
-/* ---------------------------------------------------------------------------------------------- */
-
 void test_malformed_event_propagation() {
   HSM<S, E, 4, 4> fsm("t_malformed2", S::CHILD1);
   fsm.addState(S::CHILD1).parent(S::PARENT); // PARENT never registered, no handler for GO
@@ -647,10 +555,6 @@ void test_malformed_event_propagation() {
   TEST_ASSERT_FALSE(fsm.dispatch(E::GO)); // propagation to PARENT misses -> unhandled
   TEST_ASSERT_FALSE(fsm.isInState(S::A)); // ancestor walk stops at the unregistered PARENT
 }
-
-/* ---------------------------------------------------------------------------------------------- */
-/*               Defensive: a parent cycle does not cause an infinite loop                        */
-/* ---------------------------------------------------------------------------------------------- */
 
 void test_cyclic_config_no_infinite_loop() {
   // A <-> B form a parent cycle. The MaxStates cap on the enter/LCA walks must bound the iteration
@@ -666,7 +570,7 @@ void test_cyclic_config_no_infinite_loop() {
 }
 
 /* ---------------------------------------------------------------------------------------------- */
-/*                                             Runners                                            */
+/*                                            Runners                                             */
 /* ---------------------------------------------------------------------------------------------- */
 
 void setUp(void) {
@@ -680,36 +584,53 @@ void tearDown(void) {
 int runUnityTests(void) {
   UNITY_BEGIN();
 
+  // External transitions
   RUN_TEST(test_simple_transition);
   RUN_TEST(test_entry_exit_order);
   RUN_TEST(test_transition_action_order);
+
+  // Guards
   RUN_TEST(test_guard_allows);
   RUN_TEST(test_guard_denies);
   RUN_TEST(test_guard_fallthrough);
-  RUN_TEST(test_unhandled_event);
-  RUN_TEST(test_event_inheritance);
-  RUN_TEST(test_initial_child);
+  RUN_TEST(test_all_guards_fail_returns_false);
+
+  // Internal transitions
   RUN_TEST(test_internal_transition);
   RUN_TEST(test_internal_transition_guard);
+  RUN_TEST(test_internal_inherited_from_parent);
+  RUN_TEST(test_internal_exit_not_fired);
+  RUN_TEST(test_internal_empty_action);
+
+  // Hierarchy
+  RUN_TEST(test_event_inheritance);
+  RUN_TEST(test_initial_child);
+  RUN_TEST(test_lca_exits_entries);
+
+  // History
   RUN_TEST(test_shallow_history);
   RUN_TEST(test_deep_history);
-  RUN_TEST(test_is_in_state);
-  RUN_TEST(test_reset);
+  RUN_TEST(test_reset_clears_history);
+
+  // Dispatch
+  RUN_TEST(test_unhandled_event);
+  RUN_TEST(test_dispatch_skips_other_event_same_state);
+
+  // Lifecycle and queries
   RUN_TEST(test_dispatch_before_start);
   RUN_TEST(test_start_idempotent);
-  RUN_TEST(test_lca_exits_entries);
-  RUN_TEST(test_reset_clears_history);
-  RUN_TEST(test_internal_inherited_from_parent);
-  RUN_TEST(test_all_guards_fail_returns_false);
-  RUN_TEST(test_overflow_isvalid);
-  RUN_TEST(test_has_started);
+  RUN_TEST(test_reset);
   RUN_TEST(test_reset_before_start_noop);
-  RUN_TEST(test_internal_exit_not_fired);
+  RUN_TEST(test_has_started);
+  RUN_TEST(test_is_in_state);
+
+  // Capacity and configuration
   RUN_TEST(test_add_state_twice_same_id);
+  RUN_TEST(test_overflow_isvalid);
   RUN_TEST(test_max_transitions_overflow_external);
   RUN_TEST(test_max_transitions_overflow_internal);
-  RUN_TEST(test_internal_empty_action);
-  RUN_TEST(test_dispatch_skips_other_event_same_state);
+
+  // Defensive (malformed configuration)
   RUN_TEST(test_malformed_unregistered_states);
   RUN_TEST(test_malformed_event_propagation);
   RUN_TEST(test_cyclic_config_no_infinite_loop);
