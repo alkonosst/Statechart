@@ -74,6 +74,20 @@ pio ci -l . -c platformio.ini -e esp32-s3-test examples/<example-folder>
 pio ci -l . -c platformio.ini -e native-test examples/<example-folder>
 ```
 
+To compile all examples, you can use the `scripts/compile-examples.py` script, which mirrors the CI
+locally. Usage:
+
+```bash
+# Both types
+python scripts/compile-examples.py --arduino-envs esp32-s3-test --native-envs native-test
+
+# Only native
+python scripts/compile-examples.py --native-envs native-test
+
+# Native and multiple Arduino envs
+python scripts/compile-examples.py --arduino-envs "esp32-s3-test stm32f103-test" --native-envs native-test
+```
+
 ## Running examples
 
 > [!IMPORTANT]
